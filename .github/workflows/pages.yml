@@ -15,9 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Assemble site (decode bundled binary assets)
         run: |
-          mkdir -p _site/img
-          cp index.html favicon.svg CREDITS.md README.md .nojekyll _site/
-          cp img/*.svg _site/img/
+          mkdir -p _site/css _site/js
+          cp index.html favicon.svg CREDITS.md README.md .nojekyll robots.txt _site/
+          cp css/site.css _site/css/
+          cp js/site.js _site/js/
           cat bundle/assets.b64.part* | base64 -d | tar -xf - -C _site
           sha256sum -c bundle/SHA256SUMS
           find _site -type f | sort
