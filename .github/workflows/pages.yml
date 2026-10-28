@@ -1,0 +1,31 @@
+name: Build and publish site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site (decode bundled binary assets)
+        run: |
+          mkdir -p _site/img
+          cp index.html favicon.svg CREDITS.md README.md .nojekyll _site/
+          cp img/*.svg _site/img/
+          cat bundle/assets.b64.part* | base64 -d | tar -xf - -C _site
+          sha256sum -c bundle/SHA256SUMS
+          find _site -type f | sort
+      - name: Publish to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
+          force_orphan: true
+          enable_jekyll: false
