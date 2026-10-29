@@ -9,11 +9,11 @@ const ls={get:(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch(e)
 /* ---------- preloader ---------- */
 function ready(){root.classList.add('ready');d.body.classList.add('ready')}
 const pre=$('#pre');
-function endPre(){if(!pre||pre.dataset.end)return;pre.dataset.end=1;ss.set('pt_seen','1');pre.classList.add('done');ready();setTimeout(()=>{pre.classList.add('gone');setTimeout(()=>pre.remove(),600)},RM?50:950)}
+function endPre(){if(!pre||pre.dataset.end)return;pre.dataset.end=1;ss.set('pt_seen','1');pre.classList.add('done');ready();setTimeout(()=>{pre.classList.add('gone');setTimeout(()=>pre.remove(),450)},RM?50:720)}
 if(pre&&!root.classList.contains('seen')){
-  const n=$('#pre-n'),t0=performance.now(),DUR=RM?200:1700;
+  const n=$('#pre-n'),t0=performance.now(),DUR=RM?200:1250;
   (function tick(t){const p=Math.min(1,(t-t0)/DUR),e=1-Math.pow(1-p,3);n.textContent=Math.round(e*100);if(p<1&&!pre.dataset.end)requestAnimationFrame(tick);else setTimeout(endPre,120)})(t0);
-  $('.pre-skip',pre).addEventListener('click',endPre);setTimeout(endPre,2200);
+  $('.pre-skip',pre).addEventListener('click',endPre);setTimeout(endPre,1800);
 }else{pre&&pre.remove();requestAnimationFrame(ready)}
 /* ---------- page transitions ---------- */
 const ptc=$('#ptc');

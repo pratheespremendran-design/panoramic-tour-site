@@ -49,13 +49,13 @@ em{font-style:normal;background:var(--grad);-webkit-background-clip:text;backgro
 .cta-row{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:1.6rem}
 .cta-col{display:flex;flex-direction:column;gap:.7rem}
 /* preloader */
-#pre{position:fixed;inset:0;z-index:900;display:grid;place-items:center;background:radial-gradient(120% 80% at 50% 0%,#fff 0%,#eaf4ff 55%,#dcecff 100%);animation:preAuto .01s 4.2s forwards}
+#pre{position:fixed;inset:0;z-index:900;display:grid;place-items:center;background:radial-gradient(120% 80% at 50% 0%,#fff 0%,#eaf4ff 55%,#dcecff 100%);animation:preAuto .01s 3.5s forwards}
 #pre .pre-cur{position:absolute;inset:0;background:var(--navy);transform:translateY(100%)}
 #pre .pre-cur.c2{background:var(--grad)}
-#pre.done .c2{animation:curUp .9s var(--ease) forwards}
-#pre.done .c1{animation:curUp .9s .12s var(--ease) forwards}
+#pre.done .c2{animation:curUp .7s var(--ease) forwards}
+#pre.done .c1{animation:curUp .7s .1s var(--ease) forwards}
 #pre.done .pre-in,#pre.done .pre-skip{opacity:0;transform:translateY(-30px);transition:.5s var(--ease)}
-#pre.gone{opacity:0;visibility:hidden;transition:opacity .5s,visibility 0s .5s}
+#pre.gone{opacity:0;visibility:hidden;transition:opacity .4s,visibility 0s .4s}
 @keyframes curUp{0%{transform:translateY(100%)}50%{transform:translateY(0)}100%{transform:translateY(-100%)}}
 @keyframes preAuto{to{opacity:0;visibility:hidden;pointer-events:none}}
 .pre-in{position:relative;width:min(300px,70vw);aspect-ratio:1;display:grid;place-items:center}
