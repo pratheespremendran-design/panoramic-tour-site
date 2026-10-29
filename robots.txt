@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://pratheespremendran-design.github.io/panoramic-tour-site/sitemap.xml
