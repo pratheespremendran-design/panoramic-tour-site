@@ -1,228 +1,155 @@
-(function(){
-"use strict";
-var d=document, root=d.documentElement;
-var RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
-var FINE=matchMedia('(hover: hover) and (pointer: fine)').matches;
-var HAS=!!(window.gsap&&window.ScrollTrigger);
-var $=function(s,c){return (c||d).querySelector(s)}, $$=function(s,c){return Array.prototype.slice.call((c||d).querySelectorAll(s))};
-
-/* ---------- split text into masked words ---------- */
-function split(el){
-  function walk(node,grad){
-    var kids=Array.prototype.slice.call(node.childNodes);
-    kids.forEach(function(k){
-      if(k.nodeType===3){
-        var parts=k.textContent.split(/(\s+)/);var frag=d.createDocumentFragment();
-        parts.forEach(function(p){
-          if(!p)return;
-          if(/^\s+$/.test(p)){frag.appendChild(d.createTextNode(' '));return}
-          var w=d.createElement('span');w.className='w';var i=d.createElement('span');i.className='wi'+(grad?' grad':'');i.textContent=p;w.appendChild(i);frag.appendChild(w);
-        });
-        node.replaceChild(frag,k);
-      }else if(k.nodeType===1){
-        var g=grad||k.classList.contains('grad');
-        if(k.classList.contains('grad'))k.classList.remove('grad');
-        walk(k,g);
-      }
-    });
-  }
-  walk(el,false);
-}
-
-/* ---------- ripple (touch + mouse) ---------- */
-d.addEventListener('pointerdown',function(e){
-  var t=e.target.closest('.btn,.card,.xp,.clist a,.dock a');if(!t)return;
-  var r=t.getBoundingClientRect(),s=Math.max(r.width,r.height)*2.2,sp=d.createElement('span');
-  sp.className='ripple';sp.style.width=sp.style.height=s+'px';sp.style.left=(e.clientX-r.left-s/2)+'px';sp.style.top=(e.clientY-r.top-s/2)+'px';
-  if(getComputedStyle(t).position==='static')t.style.position='relative';
-  t.appendChild(sp);setTimeout(function(){sp.remove()},800);
-},{passive:true});
-
-/* ---------- header, progress, dock ---------- */
-var hdr=$('#hdr'),prog=$('#progress'),dock=$('#dock'),lastY=0;
-function onScroll(){
-  var y=window.scrollY,h=root.scrollHeight-innerHeight;
-  hdr.classList.toggle('scrolled',y>20);
-  if(FINE){hdr.classList.toggle('hide',y>lastY&&y>400)}
-  prog.style.transform='scaleX('+(h>0?y/h:0)+')';
-  lastY=y;
-}
-addEventListener('scroll',onScroll,{passive:true});onScroll();
-var secs=['journeys','destinations','reviews','contact'].map(function(id){return d.getElementById(id)});
-if('IntersectionObserver' in window){
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){$$('.dock a').forEach(function(a){a.classList.toggle('on',a.dataset.sec===e.target.id)});$$('.nav a').forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
-  $$('main section[id]').forEach(function(s){io.observe(s)});
-}
-
-/* ---------- form: compose WhatsApp / email ---------- */
-var form=$('#enq');
-form.addEventListener('submit',function(e){
-  e.preventDefault();
-  var via=(e.submitter&&e.submitter.dataset.via)||'wa',f=form.elements;
-  if(!f.name.value.trim()){f.name.focus();f.name.reportValidity&&f.name.setCustomValidity('Please add your name');f.name.reportValidity();f.name.setCustomValidity('');return}
-  var acc=(form.querySelector('input[name=acc]:checked')||{}).value||'';
-  var lines=['Hello Panoramic Tour, I would like a quote for a Sri Lanka journey.','','Name: '+f.name.value.trim()];
-  if(f.email.value.trim())lines.push('Email: '+f.email.value.trim());
-  if(f.date.value)lines.push('Departure date: '+f.date.value);
-  if(f.pax.value)lines.push('Travellers: '+f.pax.value);
-  if(acc)lines.push('Accommodation style: '+acc);
-  if(f.msg.value.trim())lines.push('','Travel dreams: '+f.msg.value.trim());
-  var text=lines.join('\n');
-  if(via==='wa'){window.open('https://wa.me/94774192370?text='+encodeURIComponent(text),'_blank','noopener')}
-  else{location.href='mailto:info@pttsrilanka.travel?subject='+encodeURIComponent('Request for a quote — '+f.name.value.trim())+'&body='+encodeURIComponent(text)}
-});
-
-/* ---------- journeys rail: drag, arrows, progress ---------- */
-var rail=$('#rail'),bar=$('#railbar');
-function railUpdate(){var m=rail.scrollWidth-rail.clientWidth;var vis=rail.clientWidth/rail.scrollWidth;var p=m>0?rail.scrollLeft/m:1;bar.style.transform='translateX('+(p*(1-vis)*100/vis)+'%) scaleX(1)';bar.style.width=(vis*100)+'%'}
-rail.addEventListener('scroll',railUpdate,{passive:true});addEventListener('resize',railUpdate);railUpdate();
-function step(dir){var c=rail.querySelector('.card');var w=c?c.getBoundingClientRect().width+20:400;rail.scrollBy({left:dir*w,behavior:RM?'auto':'smooth'})}
-$('#jprev').addEventListener('click',function(){step(-1)});$('#jnext').addEventListener('click',function(){step(1)});
-if(FINE){
-  var down=false,sx=0,sl=0,moved=0,vx=0,lx=0,raf;
-  rail.addEventListener('pointerdown',function(e){if(e.pointerType!=='mouse'||e.button!==0)return;down=true;moved=0;sx=lx=e.clientX;sl=rail.scrollLeft;cancelAnimationFrame(raf)});
-  addEventListener('pointermove',function(e){if(!down)return;var dx=e.clientX-sx;moved=Math.max(moved,Math.abs(dx));if(moved>4)rail.classList.add('drag');vx=e.clientX-lx;lx=e.clientX;rail.scrollLeft=sl-dx});
-  addEventListener('pointerup',function(){if(!down)return;down=false;
-    (function glide(){vx*=.94;rail.scrollLeft-=vx;if(Math.abs(vx)>.5){raf=requestAnimationFrame(glide)}else{rail.classList.remove('drag')}})();
-  });
-  rail.addEventListener('click',function(e){if(moved>6){e.preventDefault();e.stopPropagation()}},true);
-}
-
-/* ---------- tilt + glare ---------- */
-if(FINE&&!RM){
-  $$('[data-tilt]').forEach(function(el){
-    var g=el.querySelector('.glare');
-    el.addEventListener('pointermove',function(e){
-      if(rail.classList.contains('drag'))return;
-      var r=el.getBoundingClientRect(),px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;
-      el.style.transition='transform .15s ease-out,box-shadow .5s';
-      el.style.transform='perspective(1000px) rotateX('+((.5-py)*8).toFixed(2)+'deg) rotateY('+((px-.5)*10).toFixed(2)+'deg) translateZ(0)';
-      if(g){el.style.setProperty('--gx',px*100+'%');el.style.setProperty('--gy',py*100+'%')}
-    });
-    el.addEventListener('pointerleave',function(){el.style.transition='transform .9s cubic-bezier(.22,1,.36,1),box-shadow .5s';el.style.transform=''});
-  });
-}
-/* spotlight */
-$$('.xp').forEach(function(el){el.addEventListener('pointermove',function(e){var r=el.getBoundingClientRect();el.style.setProperty('--mx',(e.clientX-r.left)+'px');el.style.setProperty('--my',(e.clientY-r.top)+'px')})});
-
-/* checks fallback (no gsap) */
-var checks=$('#checks');
-if(!HAS||RM){checks.classList.add('in');$('#giant').classList.add('in')}
-else{root.classList.add('js')}
-
-if(!HAS||RM)return;
-
-/* ================= GSAP ================= */
-gsap.registerPlugin(ScrollTrigger);
-var lenis=null;
-if(FINE&&window.Lenis){
-  lenis=new Lenis({lerp:.1,smoothWheel:true});
-  lenis.on('scroll',ScrollTrigger.update);
-  gsap.ticker.add(function(t){lenis.raf(t*1000)});gsap.ticker.lagSmoothing(0);
-  $$('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var id=a.getAttribute('href');if(id.length<2&&id!=='#top')return;var t=id==='#top'?0:d.querySelector(id);if(t!==null){e.preventDefault();lenis.scrollTo(t,{offset:-70,duration:1.4})}})});
-}
-
-/* split headings */
-$$('[data-split]').forEach(split);
-
-/* hero intro */
-var tl=gsap.timeline({defaults:{ease:'expo.out'}});
-tl.from('.hero .h1 .wi',{yPercent:115,rotate:4,duration:1.25,stagger:.07},.1)
-  .from('.hero [data-in]',{y:26,opacity:0,duration:1.1,stagger:.08},.35)
-  .from('.stage .lay .in',{y:90,scale:.86,opacity:0,duration:1.5,stagger:.09},.2)
-  .from('.orbit ellipse',{opacity:0,scale:.9,transformOrigin:'50% 50%',duration:1.8,stagger:.15},.4);
-gsap.to('.orbit .o3',{rotation:360,transformOrigin:'50% 50%',duration:60,repeat:-1,ease:'none'});
-gsap.to('.orbit .o1',{strokeDashoffset:-160,duration:20,repeat:-1,ease:'none'});
-
-/* hero pointer parallax (mouse + touch) */
-var stage=$('#stage'),lays=$$('.stage .lay').map(function(l){return {el:l,d:parseFloat(l.dataset.depth)||1}});
-var tx=0,ty=0,cx=0,cy=0;
-function aim(x,y){tx=Math.max(-1,Math.min(1,x));ty=Math.max(-1,Math.min(1,y))}
-addEventListener('pointermove',function(e){if(e.pointerType==='mouse')aim(e.clientX/innerWidth*2-1,e.clientY/innerHeight*2-1)},{passive:true});
-stage.addEventListener('touchmove',function(e){var t=e.touches[0],r=stage.getBoundingClientRect();aim((t.clientX-r.left)/r.width*2-1,(t.clientY-r.top)/r.height*2-1)},{passive:true});
-stage.addEventListener('touchend',function(){aim(0,0)},{passive:true});
-addEventListener('deviceorientation',function(e){if(e.gamma==null)return;aim(e.gamma/25,(e.beta-45)/25)},{passive:true});
-var amp=FINE?26:14, idle=0;
-gsap.ticker.add(function(){
-  if(!FINE){idle+=.012;if(Math.abs(tx)<.001&&Math.abs(ty)<.001){} }
-  var ix=FINE?0:Math.sin(idle)*.35, iy=FINE?0:Math.cos(idle*.8)*.25;
-  cx+=((tx+ix)-cx)*.06;cy+=((ty+iy)-cy)*.06;
-  for(var i=0;i<lays.length;i++){var L=lays[i];L.el.style.transform='translate3d('+(cx*L.d*amp).toFixed(2)+'px,'+(cy*L.d*amp).toFixed(2)+'px,0)'}
-  stage.style.transform='rotateY('+(cx*5).toFixed(2)+'deg) rotateX('+(-cy*4).toFixed(2)+'deg)';
-});
-/* scroll parallax on hero */
-gsap.to('#stageWrap',{yPercent:-10,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
-gsap.to('.hero-copy',{yPercent:8,opacity:.2,ease:'none',scrollTrigger:{trigger:'.hero',start:'center top',end:'bottom top',scrub:true}});
-
-/* marquee — speed & direction follow scroll */
-var mq=$('#marq');mq.innerHTML+=mq.innerHTML;
-var mx=0,dir=-1,boost=0,half=0;
-function mqm(){half=mq.scrollWidth/2}mqm();addEventListener('resize',mqm);
-ScrollTrigger.create({start:0,end:'max',onUpdate:function(s){dir=s.direction>0?-1:1;boost=Math.min(Math.abs(s.getVelocity())/180,14)}});
-gsap.ticker.add(function(){boost*=.92;mx+=dir*(.6+boost);if(mx<=-half)mx+=half;if(mx>0)mx-=half;mq.style.transform='translate3d('+mx.toFixed(2)+'px,0,0)'});
-
-/* word reveals for section headings */
-$$('[data-split]').forEach(function(h){if(h.closest('.hero'))return;
-  gsap.from(h.querySelectorAll('.wi'),{yPercent:110,rotate:3,duration:1.1,ease:'expo.out',stagger:.045,scrollTrigger:{trigger:h,start:'top 88%',once:true}});
-});
-/* batch reveals */
-gsap.set('[data-r]',{y:44,opacity:0});
-ScrollTrigger.batch('[data-r]',{start:'top 92%',once:true,onEnter:function(b){gsap.to(b,{y:0,opacity:1,duration:1.1,ease:'expo.out',stagger:.08,overwrite:true,clearProps:'transform'})}});
-
-/* counters */
-$$('[data-count]').forEach(function(el){var end=+el.dataset.count,o={v:0};
-  ScrollTrigger.create({trigger:el,start:'top 92%',once:true,onEnter:function(){gsap.to(o,{v:end,duration:1.8,ease:'power3.out',onUpdate:function(){el.textContent=Math.round(o.v)}})}});
-});
-
-/* steps line (scroll-linked) */
-var stepsEl=$('#steps'),stepEls=$$('.step',stepsEl);
-stepEls.forEach(function(s){s.classList.remove('on')});stepsEl.style.setProperty('--p',0);
-ScrollTrigger.create({trigger:stepsEl,start:'top 72%',end:'bottom 60%',scrub:.6,onUpdate:function(s){var p=s.progress;stepsEl.style.setProperty('--p',p.toFixed(3));stepEls.forEach(function(el,i){el.classList.toggle('on',p>=i/(stepEls.length-1)-.04)})}});
-gsap.from('.step',{y:40,opacity:0,duration:1,ease:'expo.out',stagger:.12,scrollTrigger:{trigger:stepsEl,start:'top 85%',once:true}});
-
-/* interlude: expanding image */
-var inter=$('#inter');
-gsap.fromTo(inter,{clipPath:'inset(6% 5% 6% 5% round 36px)'},{clipPath:'inset(0% 0% 0% 0% round 0px)',ease:'none',scrollTrigger:{trigger:inter,start:'top 90%',end:'top 15%',scrub:true}});
-gsap.fromTo('#inter img',{yPercent:-6,scale:1.15},{yPercent:6,scale:1,ease:'none',scrollTrigger:{trigger:inter,start:'top bottom',end:'bottom top',scrub:true}});
-
-/* image masks */
-$$('[data-mask]').forEach(function(m,i){var img=m.querySelector('img');
-  gsap.fromTo(m,{clipPath:'inset(14% 14% 14% 14% round 28px)'},{clipPath:'inset(0% 0% 0% 0% round 28px)',duration:1.6,ease:'expo.out',delay:i*.15,scrollTrigger:{trigger:m,start:'top 88%',once:true}});
-  gsap.fromTo(img,{scale:1.3},{scale:1,duration:1.8,ease:'expo.out',delay:i*.15,scrollTrigger:{trigger:m,start:'top 88%',once:true}});
-});
-gsap.to('.am2',{yPercent:-14,ease:'none',scrollTrigger:{trigger:'.about-media',start:'top bottom',end:'bottom top',scrub:true}});
-
-/* checks draw + giant wordmark */
-ScrollTrigger.create({trigger:checks,start:'top 85%',once:true,onEnter:function(){checks.classList.add('in')}});
-ScrollTrigger.create({trigger:'#giant',start:'top 95%',once:true,onEnter:function(){$('#giant').classList.add('in')}});
-
-/* dock hide in hero (mobile) */
-ScrollTrigger.create({trigger:'.hero',start:'top top',end:'60% top',onLeave:function(){dock.classList.remove('off')},onEnterBack:function(){dock.classList.add('off')}});
-if(scrollY<innerHeight*.4)dock.classList.add('off');
-
-/* magnetic buttons */
-if(FINE){
-  $$('[data-magnetic]').forEach(function(b){
-    var xTo=gsap.quickTo(b,'x',{duration:.6,ease:'elastic.out(1,.4)'}),yTo=gsap.quickTo(b,'y',{duration:.6,ease:'elastic.out(1,.4)'});
-    var lbl=b.querySelector('.lbl'),lx=lbl&&gsap.quickTo(lbl,'x',{duration:.6,ease:'power3.out'}),ly=lbl&&gsap.quickTo(lbl,'y',{duration:.6,ease:'power3.out'});
-    b.addEventListener('pointermove',function(e){var r=b.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;xTo(x*.35);yTo(y*.45);if(lx){lx(x*.12);ly(y*.15)}});
-    b.addEventListener('pointerleave',function(){xTo(0);yTo(0);if(lx){lx(0);ly(0)}});
-  });
-  /* custom cursor */
-  root.classList.add('has-cursor');
-  var c1=$('.cur'),c2=$('.cur-r'),lbl=c2.querySelector('span');
-  var x1=gsap.quickTo(c1,'x',{duration:.12,ease:'power3'}),y1=gsap.quickTo(c1,'y',{duration:.12,ease:'power3'});
-  var x2=gsap.quickTo(c2,'x',{duration:.5,ease:'power3'}),y2=gsap.quickTo(c2,'y',{duration:.5,ease:'power3'});
-  addEventListener('pointermove',function(e){if(e.pointerType!=='mouse')return;x1(e.clientX);y1(e.clientY);x2(e.clientX);y2(e.clientY)});
-  d.addEventListener('pointerover',function(e){
-    var lab=e.target.closest('[data-cursor]'),hov=e.target.closest('a,button,label,[data-tilt],.xp');
-    var cardLink=e.target.closest('.card,.dp');
-    if(lab&&(cardLink||lab.classList.contains('rail'))){lbl.textContent=e.target.closest('.dp')?'Open':'Drag';c2.classList.add('lbl');c2.classList.remove('hov');c1.classList.add('hide')}
-    else if(hov){c2.classList.add('hov');c2.classList.remove('lbl');c1.classList.remove('hide')}
-    else{c2.classList.remove('hov','lbl');c1.classList.remove('hide')}
-  });
-  d.addEventListener('pointerleave',function(){gsap.to([c1,c2],{opacity:0,duration:.3})});
-  d.addEventListener('pointerenter',function(){gsap.to([c1,c2],{opacity:1,duration:.3})});
-}
-addEventListener('load',function(){ScrollTrigger.refresh();railUpdate()});
+(()=>{'use strict';
+const d=document,root=d.documentElement,$=(s,c=d)=>c.querySelector(s),$$=(s,c=d)=>[...c.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches,FINE=matchMedia('(hover:hover) and (pointer:fine)').matches;
+const WA='94774192370',MAIL='info@pttsrilanka.travel';
+const wa=t=>'https://wa.me/'+WA+'?text='+encodeURIComponent(t);
+const mailto=(s,b)=>'mailto:'+MAIL+'?subject='+encodeURIComponent(s)+'&body='+encodeURIComponent(b);
+const ss={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
+const ls={get:(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch(e){return f}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+/* ---------- preloader ---------- */
+function ready(){root.classList.add('ready');d.body.classList.add('ready')}
+const pre=$('#pre');
+function endPre(){if(!pre||pre.dataset.end)return;pre.dataset.end=1;ss.set('pt_seen','1');pre.classList.add('done');ready();setTimeout(()=>{pre.classList.add('gone');setTimeout(()=>pre.remove(),600)},RM?50:950)}
+if(pre&&!root.classList.contains('seen')){
+  const n=$('#pre-n'),t0=performance.now(),DUR=RM?200:1700;
+  (function tick(t){const p=Math.min(1,(t-t0)/DUR),e=1-Math.pow(1-p,3);n.textContent=Math.round(e*100);if(p<1&&!pre.dataset.end)requestAnimationFrame(tick);else setTimeout(endPre,120)})(t0);
+  $('.pre-skip',pre).addEventListener('click',endPre);setTimeout(endPre,2200);
+}else{pre&&pre.remove();requestAnimationFrame(ready)}
+/* ---------- page transitions ---------- */
+const ptc=$('#ptc');
+function arrive(){if(root.classList.contains('arrive')){ss.del('pt_nav');requestAnimationFrame(()=>root.classList.add('arrived'));setTimeout(()=>root.classList.remove('arrive','arrived'),900)}}
+arrive();
+addEventListener('pageshow',e=>{if(e.persisted){ptc.classList.remove('in');root.classList.remove('arrive','arrived')}});
+d.addEventListener('click',e=>{const a=e.target.closest('a');if(!a||e.defaultPrevented||e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;
+  const h=a.getAttribute('href');if(!h||a.target||a.hasAttribute('download')||h.startsWith('#')||/^(mailto|tel|https?|javascript):/i.test(h))return;
+  const u=new URL(a.href,location.href);if(u.origin!==location.origin)return;
+  if(u.pathname===location.pathname&&u.hash){return}
+  if(RM)return;e.preventDefault();ss.set('pt_nav','1');ptc.classList.add('in');setTimeout(()=>{location.href=a.href},430)});
+/* ---------- smooth scroll ---------- */
+let lenis=null;
+if(!RM&&FINE&&window.Lenis){try{lenis=new Lenis({lerp:.11,smoothWheel:true});const raf=t=>{lenis.raf(t);requestAnimationFrame(raf)};requestAnimationFrame(raf)}catch(e){lenis=null}}
+/* ---------- header ---------- */
+const hdr=$('#hdr');let lastY=0;
+function onScroll(){const y=scrollY;hdr.classList.toggle('hide',y>lastY&&y>320&&!d.body.classList.contains('menu-open'));lastY=y}
+addEventListener('scroll',onScroll,{passive:true});
+const burger=$('.burger'),menu=$('#menu');
+function setMenu(o){burger.setAttribute('aria-expanded',o);d.body.classList.toggle('menu-open',o);if(o){menu.hidden=false;requestAnimationFrame(()=>menu.classList.add('open'));lenis&&lenis.stop()}else{menu.classList.remove('open');setTimeout(()=>{if(!menu.classList.contains('open'))menu.hidden=true},400);lenis&&lenis.start()}
+  $$('li a',menu).forEach((a,i)=>a.style.transitionDelay=o?(i*35)+'ms':'0ms')}
+burger.addEventListener('click',()=>setMenu(burger.getAttribute('aria-expanded')!=='true'));
+d.addEventListener('keydown',e=>{if(e.key==='Escape'){setMenu(false);closeDrawer()}});
+/* ---------- split text ---------- */
+$$('[data-split]').forEach(el=>{let i=0;const walk=n=>{[...n.childNodes].forEach(c=>{if(c.nodeType===3){const f=d.createDocumentFragment();c.textContent.split(/(\s+)/).forEach(w=>{if(!w)return;if(/^\s+$/.test(w)){f.append(w);return}const s=d.createElement('span');s.className='w';const inn=d.createElement('span');inn.textContent=w;inn.style.setProperty('--i',i++);s.append(inn);f.append(s)});c.replaceWith(f)}else if(c.nodeType===1)walk(c)})};walk(el)});
+$$('[data-words]').forEach(el=>{el.innerHTML=el.textContent.trim().split(/\s+/).map(w=>'<span class="wd">'+w+'</span>').join(' ')});
+/* ---------- reveal ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('is-in');io.unobserve(e.target)}}),{rootMargin:'0px 0px -8% 0px',threshold:.08});
+$$('[data-reveal],[data-split],.steps,.ss,.route-card,.wordmark,.bw').forEach((el,i)=>{const sib=el.parentElement?[...el.parentElement.children].indexOf(el):0;if(el.hasAttribute('data-reveal'))el.style.setProperty('--d',Math.min(sib,6)*0.07+'s');io.observe(el)});
+/* scroll-lit words */
+const wordsEls=$$('[data-words]');
+/* ---------- rAF loop: parallax, hscroll, words ---------- */
+const par=$$('[data-parallax]'),hs=$('[data-hscroll]'),hsT=hs&&$('[data-hs-track]',hs),hsB=hs&&$('[data-hs-bar]',hs);
+let mx=0,my=0,tx=0,ty=0;
+addEventListener('pointermove',e=>{mx=e.clientX/innerWidth-.5;my=e.clientY/innerHeight-.5},{passive:true});
+const lens=$('[data-lens]'),lens3=lens&&$('.lens-3d',lens),depthEls=$$('[data-depth]');
+let lensVis=true;if(lens){new IntersectionObserver(([e])=>{lensVis=e.isIntersecting}).observe(lens)}
+function frame(){
+  const vh=innerHeight;
+  if(!RM){tx+=(mx-tx)*.07;ty+=(my-ty)*.07;
+    if(lens3&&lensVis){lens3.style.transform=`rotateY(${tx*10}deg) rotateX(${-ty*8}deg)`}
+    depthEls.forEach(el=>{const r=el.getBoundingClientRect();if(r.bottom<0||r.top>vh)return;const k=+el.dataset.depth;el.style.translate=`${tx*k}px ${ty*k}px`});
+    par.forEach(el=>{const r=el.parentElement.getBoundingClientRect();if(r.bottom<0||r.top>vh)return;el.style.transform=`translate3d(0,${(-r.top)*(+el.dataset.parallax)}px,0)`});}
+  if(hs&&innerWidth>1000){const r=hs.getBoundingClientRect(),max=hsT.scrollWidth-innerWidth+80,p=Math.min(1,Math.max(0,-r.top/(r.height-vh)));hsT.style.transform=`translate3d(${-p*Math.max(0,max)}px,0,0)`;hsB.style.width=(p*100)+'%'}
+  wordsEls.forEach(el=>{const r=el.getBoundingClientRect();if(r.bottom<0||r.top>vh)return;const ws=el.children,p=Math.min(1,Math.max(0,(vh*.85-r.top)/(r.height+vh*.25)));const n=Math.round(p*ws.length);for(let i=0;i<ws.length;i++)ws[i].classList.toggle('lit',i<n)});
+  requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+/* ---------- hero lens ---------- */
+if(lens){const ph=$$('.isl-ph',lens),cap=$('[data-lens-cap]',lens),caps=JSON.parse($('[data-lens-caps]').textContent),bar=$('.lc-bar i',lens);let i=0;
+  const run=()=>{bar.classList.remove('run');void bar.offsetWidth;bar.classList.add('run')};run();
+  if(!RM)setInterval(()=>{if(!lensVis||d.hidden)return;ph[i].classList.remove('on');i=(i+1)%ph.length;ph[i].classList.add('on');cap.textContent=caps[i];run()},4000)}
+/* ---------- cursor + magnet + tilt ---------- */
+if(FINE&&!RM){const cur=$('.cursor'),dot=$('.cur-dot'),ring=$('.cur-ring');let cx=-100,cy=-100,rx=-100,ry=-100;
+  addEventListener('pointermove',e=>{cx=e.clientX;cy=e.clientY;dot.style.transform=`translate3d(${cx}px,${cy}px,0)`},{passive:true});
+  (function lp(){rx+=(cx-rx)*.18;ry+=(cy-ry)*.18;ring.style.transform=`translate3d(${rx}px,${ry}px,0)`;requestAnimationFrame(lp)})();
+  d.addEventListener('pointerover',e=>cur.classList.toggle('big',!!e.target.closest('a,button,[data-tilt-card],label')));
+  $$('.magnet').forEach(b=>{b.addEventListener('pointermove',e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${(e.clientX-r.left-r.width/2)*.22}px,${(e.clientY-r.top-r.height/2)*.3}px)`});b.addEventListener('pointerleave',()=>b.style.transform='')});
+  $$('[data-tilt-card]').forEach(c=>{c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;c.style.setProperty('--mx',x*100+'%');c.style.setProperty('--my',y*100+'%');c.style.transform=`perspective(900px) rotateX(${(.5-y)*5}deg) rotateY(${(x-.5)*6}deg)`});c.addEventListener('pointerleave',()=>c.style.transform='')})}
+/* ---------- map hotspots ---------- */
+$$('[data-map-data]').forEach(js=>{const sec=js.closest('section'),data=JSON.parse(js.textContent),card=$('[data-map-card]',sec),hots=$$('.hot',sec);
+  const show=k=>{const v=data[k];if(!v)return;hots.forEach(h=>h.classList.toggle('on',h.dataset.hot===k));
+    card.innerHTML=(v.img?`<img src="img/p/${v.img}-800.webp" alt="" width="800" height="533">`:'')+`<div class="mc-b"><small>${v.r}</small><h3>${v.n}</h3><p>${v.t}</p>${v.w.length?`<p class="mc-w">On: ${v.w.join(' · ')}</p>`:''}<a href="destinations.html#${k}">Explore ${v.n.split(' &')[0]} →</a></div>`};
+  hots.forEach(h=>{h.addEventListener('click',()=>show(h.dataset.hot));h.addEventListener('mouseenter',()=>FINE&&show(h.dataset.hot))});show(hots[0].dataset.hot);
+  let auto=0;const tm=setInterval(()=>{if(sec.matches(':hover')||d.hidden)return;auto=(auto+1)%hots.length;show(hots[auto].dataset.hot)},4500);sec.addEventListener('click',()=>clearInterval(tm),{once:true})});
+/* ---------- currents canvas ---------- */
+$$('[data-currents]').forEach(cv=>{if(RM)return;const ctx=cv.getContext('2d');if(!ctx)return;let w,h,vis=false,t=0;const DPR=Math.min(devicePixelRatio||1,1.5);
+  const size=()=>{w=cv.clientWidth;h=cv.clientHeight;cv.width=w*DPR;cv.height=h*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)};size();addEventListener('resize',size);
+  new IntersectionObserver(([e])=>{vis=e.isIntersecting;if(vis)requestAnimationFrame(draw)}).observe(cv);
+  function draw(){if(!vis||d.hidden)return;t+=.004;ctx.clearRect(0,0,w,h);ctx.lineWidth=1;
+    for(let j=0;j<14;j++){ctx.beginPath();const y0=h*(j/14);for(let x=0;x<=w;x+=16){const y=y0+Math.sin(x*.004+t*2+j)*26+Math.sin(x*.011-t*3+j*.7)*10;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.strokeStyle=`rgba(${j%2?'1,174,239':'95,140,255'},${.08+.05*Math.sin(t+j)})`;ctx.stroke()}
+    requestAnimationFrame(draw)}
+  d.addEventListener('visibilitychange',()=>{if(!d.hidden&&vis)requestAnimationFrame(draw)})});
+/* ---------- wordmark lift ---------- */
+const wm=$('.wordmark');if(wm&&FINE&&!RM){const sp=$$('span',wm);wm.addEventListener('pointermove',e=>sp.forEach(s=>{const r=s.getBoundingClientRect(),dx=Math.abs(e.clientX-(r.left+r.width/2));s.style.setProperty('--lift',(-Math.max(0,1-dx/220)*28)+'px');s.style.transitionDelay='0s'}));wm.addEventListener('pointerleave',()=>sp.forEach(s=>s.style.setProperty('--lift','0px')))}
+$$('[data-year]').forEach(y=>y.textContent=new Date().getFullYear());
+/* ---------- wishlist ---------- */
+const drawer=$('#wishlist');let wish=ls.get('pt_wish',[]);
+function renderWish(){$$('[data-wish-count]').forEach(n=>{n.textContent=wish.length;n.toggleAttribute('data-zero',!wish.length)});
+  $$('[data-wish]').forEach(b=>b.setAttribute('aria-pressed',wish.some(w=>w.id===b.dataset.wish)));
+  const ul=$('[data-wish-list]');ul.innerHTML=wish.length?wish.map(w=>`<li><img src="img/p/${w.img}-800.webp" alt="" width="64" height="48"><a href="${w.url}">${w.name}</a><button type="button" data-unwish="${w.id}" aria-label="Remove ${w.name}">✕</button></li>`).join(''):'<li class="empty">Nothing saved yet — tap a ♡ to start.</li>';
+  $('[data-wish-wa]').href=wa('Hello Panoramic Tour & Travels, I would like to plan a trip including:\n'+(wish.length?wish.map(w=>'• '+w.name).join('\n'):'(my wishlist is empty)'));
+  const pw=$('[data-pl-wish]');if(pw){pw.hidden=!wish.length;$('[data-pl-wish-list]').innerHTML=wish.map(w=>'<li>'+w.name+'</li>').join('')}}
+d.addEventListener('click',e=>{const b=e.target.closest('[data-wish]');if(b){e.preventDefault();const id=b.dataset.wish;if(wish.some(w=>w.id===id))wish=wish.filter(w=>w.id!==id);else wish.push({id,name:b.dataset.wishName,url:b.dataset.wishUrl,img:b.dataset.wishImg});ls.set('pt_wish',wish);b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');renderWish();return}
+  const u=e.target.closest('[data-unwish]');if(u){wish=wish.filter(w=>w.id!==u.dataset.unwish);ls.set('pt_wish',wish);renderWish()}});
+function openDrawer(){drawer.hidden=false;requestAnimationFrame(()=>drawer.classList.add('open'));lenis&&lenis.stop();$('.drawer-x').focus()}
+function closeDrawer(){if(drawer.hidden)return;drawer.classList.remove('open');setTimeout(()=>drawer.hidden=true,450);lenis&&lenis.start()}
+$('.wish-open').addEventListener('click',openDrawer);$('.drawer-x').addEventListener('click',closeDrawer);drawer.addEventListener('click',e=>{if(e.target===drawer)closeDrawer()});
+renderWish();
+/* ---------- filters ---------- */
+$$('[data-filter]').forEach(f=>{const grid=$(f.dataset.filter),items=$$(':scope>[data-tags]',grid),chips=$$('.chip-f',f),dsel=$('[data-f-days]',f),ssel=$('[data-f-sort]',f),cnt=$('[data-f-count]');let cur='all';
+  const orig=items.slice();
+  const apply=()=>{let n=0;items.forEach(it=>{const tg=it.dataset.tags.split(' ');let ok=cur==='all'||tg.includes(cur);if(dsel&&dsel.value!=='all'){const dd=+it.dataset.days;ok=ok&&(dsel.value==='short'?dd<=10:dd>10)}it.classList.toggle('is-hidden',!ok);if(ok)n++});
+    if(ssel){const s=ssel.value;const arr=s==='rec'?orig:orig.slice().sort((a,b)=>(+a.dataset[s==='price'?'price':'days'])-(+b.dataset[s==='price'?'price':'days']));arr.forEach(a=>grid.append(a))}
+    if(cnt)cnt.textContent=n+(n===1?' journey':' journeys')+' found'};
+  chips.forEach(c=>c.addEventListener('click',()=>{cur=c.dataset.f;chips.forEach(x=>x.classList.toggle('on',x===c));apply()}));dsel&&dsel.addEventListener('change',apply);ssel&&ssel.addEventListener('change',apply);apply()});
+/* ---------- itinerary expand ---------- */
+$$('[data-expand-all]').forEach(b=>b.addEventListener('click',()=>{const ds=$$('.day'),open=!ds.every(x=>x.open);ds.forEach(x=>x.open=open);b.textContent=open?'Collapse all days':'Expand all days'}));
+/* ---------- planner ---------- */
+const pl=$('[data-planner]');
+if(pl){const steps=$$('.pl-step',pl),dots=$$('[data-pl-dot]',pl),prev=$('[data-pl-prev]',pl),next=$('[data-pl-next]',pl),bar=$('[data-pl-bar]',pl),lbl=$('[data-pl-n]',pl);let s=0;
+  const saved=ls.get('pt_plan',null);
+  if(saved){Object.entries(saved).forEach(([k,v])=>{const els=$$(`[name="${k}"]`,pl);els.forEach(el=>{if(el.type==='checkbox')el.checked=[].concat(v).includes(el.value);else if(el.type==='radio')el.checked=el.value===v;else el.value=v})})}
+  const q=new URLSearchParams(location.search).get('tour');if(q){const r=$(`input[data-slug="${q}"]`,pl);if(r)r.checked=true}
+  const val=()=>{const o={};new FormData(pl).forEach((v,k)=>{if(k==='interests'){(o[k]=o[k]||[]).push(v)}else o[k]=v});return o};
+  const nOut=$('[data-out="nights"]',pl),rng=$('[name="nights"]',pl);const syncN=()=>nOut.textContent=rng.value;rng.addEventListener('input',syncN);syncN();
+  $$('[data-inc],[data-dec]',pl).forEach(b=>b.addEventListener('click',()=>{const inp=$(`[name="${b.dataset.inc||b.dataset.dec}"]`,pl);inp.value=Math.max(+inp.min,Math.min(+inp.max,(+inp.value||0)+(b.dataset.inc?1:-1)));pl.dispatchEvent(new Event('input'))}));
+  const msg=()=>{const v=val();return['Hello Panoramic Tour & Travels, I would like to plan a trip to Sri Lanka.','',
+    'Name: '+(v.name||'-'),'Email: '+(v.email||'-'),'Country: '+(v.country||'-'),'Phone/WhatsApp: '+(v.phone||'-'),
+    'Arrival: '+(v.arrival||'not fixed')+' ('+v.flex+')','Nights: '+v.nights,'Travellers: '+v.adults+' adults, '+v.children+' children'+(v.occasion?' · '+v.occasion:''),
+    'Interests: '+((v.interests||[]).join(', ')||'-'),'Hotels: '+v.hotel+' · Pace: '+v.pace+(v.budget?' · Budget pp: '+v.budget:''),
+    'Starting point: '+(v.base||'Fully custom'),wish.length?'Wishlist: '+wish.map(w=>w.name).join(', '):'','Notes: '+(v.notes||'-')].filter(Boolean).join('\n')};
+  const upd=()=>{const v=val();ls.set('pt_plan',v);if(s===5){const m=msg();$('[data-summary]',pl).textContent=m;$('[data-send-wa]',pl).href=wa(m);$('[data-send-mail]',pl).href=mailto('Trip plan: '+(v.name||'Sri Lanka journey'),m)}};
+  const go=(n,sc)=>{s=Math.max(0,Math.min(5,n||0));steps.forEach((x,i)=>x.classList.toggle('on',i===s));dots.forEach((x,i)=>{x.classList.toggle('on',i===s);x.classList.toggle('done',i<s)});bar.style.width=((s+1)/6*100)+'%';lbl.textContent='Step '+(s+1)+' of 6';prev.style.visibility=s?'visible':'hidden';next.style.display=s===5?'none':'';upd();if(sc&&pl.getBoundingClientRect().top<0)pl.scrollIntoView({behavior:RM?'auto':'smooth'})};
+  prev.addEventListener('click',()=>go(s-1,1));next.addEventListener('click',()=>go(s+1,1));pl.addEventListener('input',upd);pl.addEventListener('change',upd);
+  dots.forEach((x,i)=>{x.style.cursor='pointer';x.addEventListener('click',()=>go(i,1))});
+  $('[data-send-wa]',pl).addEventListener('click',e=>{const nm=$('[name=name]',pl);if(!nm.value.trim()){e.preventDefault();nm.focus();nm.setAttribute('aria-invalid','true')}});
+  $('[data-send-mail]',pl).addEventListener('click',e=>{const nm=$('[name=name]',pl);if(!nm.value.trim()){e.preventDefault();nm.focus();nm.setAttribute('aria-invalid','true')}});
+  pl.addEventListener('submit',e=>e.preventDefault());go(0);}
+/* ---------- manage ---------- */
+const mg=$('[data-manage]');
+if(mg){const tr=$('[data-tracker]');mg.addEventListener('submit',e=>{e.preventDefault();const ref=mg.ref.value.trim()||'DEMO',last=mg.last.value.trim();
+  $('[data-tr-ref]',tr).textContent='Showing a demo for reference “'+ref+'”. This is an example only — not your real booking status.';
+  $$('[data-tr]',tr).forEach((li,i)=>{li.classList.remove('done','cur');setTimeout(()=>{li.classList.toggle('done',i<2);li.classList.toggle('cur',i===2)},i*180)});
+  const m='Hello Panoramic Tour & Travels, could you confirm the status of my booking?\nReference: '+ref+(last?'\nLast name: '+last:'');
+  $('[data-tr-acts]',tr).hidden=false;$('[data-tr-wa]',tr).href=wa(m);$('[data-tr-mail]',tr).href=mailto('Booking status: '+ref,m)})}
+const calc=$('[data-calc]');
+if(calc){const inp=calc.arr,out=$('[data-calc-out]',calc);const t=new Date();t.setHours(0,0,0,0);inp.min=t.toISOString().slice(0,10);
+  const fmt=x=>x.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+  inp.addEventListener('input',()=>{if(!inp.value)return;const a=new Date(inp.value+'T00:00:00'),bal=new Date(a);bal.setDate(bal.getDate()-30);const days=Math.round((a-t)/864e5);
+    const band=days>30?'More than 30 days out: a 15% cancellation fee would apply if you cancelled today.':days>=0?'Within 30 days of arrival: the booking would be 100% non-refundable if cancelled today.':'This date is in the past.';
+    out.innerHTML=`<dl><dt>Arrival</dt><dd>${fmt(a)}</dd><dt>Balance due</dt><dd>${fmt(bal)}${bal<t&&days>=0?' (already due)':''}</dd><dt>Days to go</dt><dd>${days}</dd><dt>Cancelling today</dt><dd>${band}</dd></dl><p class="muted small" style="margin:.8rem 0 0">Guide only — your confirmation sets the exact terms.</p>`})}
+const rq=$('[data-req-wa]');
+if(rq){const up=()=>{const ref=$('[data-req-ref]').value.trim()||'-',ty=$('[data-req-type]').value,ms=$('[data-req-msg]').value.trim()||'-';const m='Hello Panoramic Tour & Travels,\nRequest: '+ty+'\nBooking reference: '+ref+'\nDetails: '+ms;rq.href=wa(m);$('[data-req-mail]').href=mailto(ty+' — '+ref,m)};$$('[data-req-ref],[data-req-type],[data-req-msg]').forEach(x=>x.addEventListener('input',up));up()}
+/* ---------- contact ---------- */
+const cf=$('[data-contact]');
+if(cf){const m=()=>'Name: '+cf.name.value+'\nEmail: '+cf.email.value+'\n\n'+cf.msg.value;
+  cf.addEventListener('submit',e=>{e.preventDefault();if(!cf.reportValidity())return;location.href=mailto(cf.subject.value,m())});
+  $('[data-contact-wa]').addEventListener('click',()=>{if(!cf.reportValidity())return;window.open(wa('Hello Panoramic Tour & Travels,\n'+cf.subject.value+'\n'+m()),'_blank','noopener')})}
 })();

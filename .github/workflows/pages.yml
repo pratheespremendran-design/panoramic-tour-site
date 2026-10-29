@@ -13,15 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble site (decode bundled binary assets)
+      - name: Assemble multipage site (decode bundled binary assets)
         run: |
-          mkdir -p _site/css _site/js
-          cp index.html favicon.svg CREDITS.md README.md .nojekyll robots.txt _site/
-          cp css/site.css _site/css/
-          cp js/site.js _site/js/
+          mkdir -p _site
+          cp *.html *.xml *.txt *.md favicon.svg .nojekyll _site/
+          cp -r css js _site/
           cat bundle/assets.b64.part* | base64 -d | tar -xf - -C _site
           sha256sum -c bundle/SHA256SUMS
-          find _site -type f | sort
+          find _site -type f | wc -l
       - name: Publish to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
